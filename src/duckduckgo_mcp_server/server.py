@@ -11,6 +11,9 @@ from datetime import datetime, timedelta
 import time
 import re
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class SearchResult:
@@ -67,12 +70,12 @@ class DuckDuckGoSearcher:
         return "\n".join(output)
 
     async def search(
-        self, query: str, ctx: Context, max_results: int = 10
+        self, query: str, max_results: int = 10
     ) -> List[SearchResult]:
         try:
             # Apply rate limiting
             await self.rate_limiter.acquire()
-
+            logger.info(f"lius_search")
             # Create form data for POST request
             data = {
                 "q": query,
@@ -80,21 +83,21 @@ class DuckDuckGoSearcher:
                 "kl": "",
             }
 
-            await ctx.info(f"Searching DuckDuckGo for: {query}")
-
-            async with httpx.AsyncClient() as client:
+            logger.info(f"lius_search")
+            async with httpx.AsyncClient(proxy="http://127.0.0.1:7890") as client:
                 response = await client.post(
                     self.BASE_URL, data=data, headers=self.HEADERS, timeout=30.0
                 )
                 response.raise_for_status()
-
+            logger.info(f"lius_search")
             # Parse HTML response
             soup = BeautifulSoup(response.text, "html.parser")
+            logger.info(f"lius_search")
             if not soup:
-                await ctx.error("Failed to parse HTML response")
                 return []
 
             results = []
+            logger.info(f"lius_search")
             for result in soup.select(".result"):
                 title_elem = result.select_one(".result__title")
                 if not title_elem:
@@ -129,18 +132,18 @@ class DuckDuckGoSearcher:
 
                 if len(results) >= max_results:
                     break
-
-            await ctx.info(f"Successfully found {len(results)} results")
+            logger.info(f"lius_search")
+            logger.info(f"Successfully found {len(results)} results")
             return results
 
-        except httpx.TimeoutError:
-            await ctx.error("Search request timed out")
+        except httpx.TimeoutException:
+            logger.error("Search request timed out")
             return []
         except httpx.HTTPError as e:
-            await ctx.error(f"HTTP error occurred: {str(e)}")
+            logger.error(f"HTTP error occurred: {str(e)}")
             return []
         except Exception as e:
-            await ctx.error(f"Unexpected error during search: {str(e)}")
+            logger.error(f"Unexpected error during search: {str(e)}")
             traceback.print_exc(file=sys.stderr)
             return []
 
@@ -149,14 +152,14 @@ class WebContentFetcher:
     def __init__(self):
         self.rate_limiter = RateLimiter(requests_per_minute=20)
 
-    async def fetch_and_parse(self, url: str, ctx: Context) -> str:
+    async def fetch_and_parse(self, url: str) -> str:
         """Fetch and parse content from a webpage"""
         try:
             await self.rate_limiter.acquire()
 
-            await ctx.info(f"Fetching content from: {url}")
+            logger.info(f"Fetching content from: {url}")
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(proxy="http://127.0.0.1:7890") as client:
                 response = await client.get(
                     url,
                     headers={
@@ -189,19 +192,19 @@ class WebContentFetcher:
             if len(text) > 8000:
                 text = text[:8000] + "... [content truncated]"
 
-            await ctx.info(
+            logger.info(
                 f"Successfully fetched and parsed content ({len(text)} characters)"
             )
             return text
 
-        except httpx.TimeoutError:
-            await ctx.error(f"Request timed out for URL: {url}")
+        except httpx.TimeoutException:
+            logger.error(f"Request timed out for URL: {url}")
             return "Error: The request timed out while trying to fetch the webpage."
         except httpx.HTTPError as e:
-            await ctx.error(f"HTTP error occurred while fetching {url}: {str(e)}")
+            logger.error(f"HTTP error occurred while fetching {url}: {str(e)}")
             return f"Error: Could not access the webpage ({str(e)})"
         except Exception as e:
-            await ctx.error(f"Error fetching content from {url}: {str(e)}")
+            logger.error(f"Error fetching content from {url}: {str(e)}")
             return f"Error: An unexpected error occurred while fetching the webpage ({str(e)})"
 
 
@@ -209,36 +212,41 @@ class WebContentFetcher:
 mcp = FastMCP("ddg-search")
 searcher = DuckDuckGoSearcher()
 fetcher = WebContentFetcher()
-
+#ctx = mcp.get_context()
 
 @mcp.tool()
-async def search(query: str, ctx: Context, max_results: int = 10) -> str:
+async def search(query: str, max_results: int = 3) -> str:
     """
     Search DuckDuckGo and return formatted results.
 
     Args:
         query: The search query string
         max_results: Maximum number of results to return (default: 10)
-        ctx: MCP context for logging
     """
+    
     try:
-        results = await searcher.search(query, ctx, max_results)
-        return searcher.format_results_for_llm(results)
+        logger.info(f"lius_query: {query}, 111111")
+        results = await searcher.search(query, max_results)
+        logger.info(f"lius_query: {results}, 111111")
+        str_results = searcher.format_results_for_llm(results)
+        logger.info(f"lius_query: {str_results}, 111111")
+        return str_results
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         return f"An error occurred while searching: {str(e)}"
 
 
 @mcp.tool()
-async def fetch_content(url: str, ctx: Context) -> str:
+async def fetch_content(url: str) -> str:
     """
     Fetch and parse content from a webpage URL.
 
     Args:
         url: The webpage URL to fetch content from
-        ctx: MCP context for logging
     """
-    return await fetcher.fetch_and_parse(url, ctx)
+    logger.info(f"lius_url: {url}, 111111")
+    
+    return await fetcher.fetch_and_parse(url)
 
 
 def main():
