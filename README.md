@@ -1,5 +1,7 @@
 # DuckDuckGo Search MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@nickclyde/duckduckgo-mcp-server)](https://smithery.ai/server/@nickclyde/duckduckgo-mcp-server)
+
 A Model Context Protocol (MCP) server that provides web search capabilities through DuckDuckGo, with additional features for content fetching and parsing.
 
 ## Features
@@ -11,6 +13,16 @@ A Model Context Protocol (MCP) server that provides web search capabilities thro
 - **LLM-Friendly Output**: Results formatted specifically for large language model consumption
 
 ## Installation
+
+### Installing via Smithery
+
+To install DuckDuckGo Search Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@nickclyde/duckduckgo-mcp-server):
+
+```bash
+npx -y @smithery/cli install @nickclyde/duckduckgo-mcp-server --client claude
+```
+
+### Installing via `uv`
 
 Install directly from PyPI using `uv`:
 
